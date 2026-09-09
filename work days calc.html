@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Калькулятор рабочих дней Казахстана</title>
+<meta name="description" content="Локальный калькулятор рабочих дней между двумя датами с учётом выходных и государственных праздников РК" />
+
+<style>
+  /* ══ ТЕМА 1 — дневное море: бумага васи, берлинская лазурь, киноварь ══ */
+  :root {
+    --bg: #ece4d1;
+    --surface: #f4eedc;
+    --surface-2: #e2d8bf;
+    --border: #cabd9c;
+    --border-strong: #a89a76;
+    --ink: #1b1a15;
+    --ink-soft: #453f34;
+    --muted: #6f6653;
+    --accent: #a72f26;
+    --accent-deep: #872018;
+    --accent-ink: #f4eedc;
+    --accent-wash: #e7d4c8;
+    --seal: #a72f26;
+    --weekend: #8e8670;
+    --shadow: 0 1px 0 rgba(27, 26, 21, 0.05), 0 22px 44px -30px rgba(27, 26, 21, 0.45);
+
+    /* морская сцена */
+    --sky-a: #efe6cc;
+    --sky-b: #e3d3ae;
+    --wave-deep: #163358;
+    --wave-mid: #3c6ea4;
+    --wave-light: #a4c7e2;
+    --wave-foam: #f7f3e7;
+    --wave-line: #0f1d31;
+    --mist: #d8d0bd;
+    --mist-op: 0.5;
+    --fuji: #e7ebeb;
+    --fuji-snow: #ffffff;
+    --moon: #f2ead6;
+    --moon-op: 0;
+
+    --font-display: "Constantia", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
+    --font-body: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Consolas", "SFMono-Regular", ui-monospace, "Courier New", monospace;
+
+    --step--1: 0.82rem;
+    --step-0: 0.97rem;
+    --step-1: 1.2rem;
+    --step-2: 1.55rem;
+    --step-3: clamp(2rem, 5vw, 2.55rem);
+    --step-huge: clamp(3.6rem, 11vw, 5.6rem);
+  }
+
+  /* ══ ТЕМА 2 — ночное море: полночная синь, луна, холодная тушь ══ */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a1017;
+      --surface: #141b24;
+      --surface-2: #1c2530;
+      --border: #2b3540;
+      --border-strong: #3d4a58;
+      --ink: #e9e3d1;
+      --ink-soft: #bac4cf;
+      --muted: #8d99a5;
+      --accent: #db5b41;
+      --accent-deep: #ec7458;
+      --accent-ink: #141b24;
+      --accent-wash: #2a1d1c;
+      --seal: #db5b41;
+      --weekend: #5e6a75;
+      --shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 26px 52px -28px rgba(0, 0, 0, 0.82);
+
+      --sky-a: #0c1c31;
+      --sky-b: #050b15;
+      --wave-deep: #08172a;
+      --wave-mid: #143352;
+      --wave-light: #325a80;
+      --wave-foam: #aec0d0;
+      --wave-line: #030a14;
+      --mist: #10243b;
+      --mist-op: 0.55;
+      --fuji: #223247;
+      --fuji-snow: #6e8296;
+      --moon: #dce3e9;
+      --moon-op: 1;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0a1017;
+    --surface: #141b24;
+    --surface-2: #1c2530;
+    --border: #2b3540;
+    --border-strong: #3d4a58;
+    --ink: #e9e3d1;
+    --ink-soft: #bac4cf;
+    --muted: #8d99a5;
+    --accent: #db5b41;
+    --accent-deep: #ec7458;
+    --accent-ink: #141b24;
+    --accent-wash: #2a1d1c;
+    --seal: #db5b41;
+    --weekend: #5e6a75;
+    --shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 26px 52px -28px rgba(0, 0, 0, 0.82);
+
+    --sky-a: #0c1c31;
+    --sky-b: #050b15;
+    --wave-deep: #08172a;
+    --wave-mid: #143352;
+    --wave-light: #325a80;
+    --wave-foam: #aec0d0;
+    --wave-line: #030a14;
+    --mist: #10243b;
+    --mist-op: 0.55;
+    --fuji: #223247;
+    --fuji-snow: #6e8296;
+    --moon: #dce3e9;
+    --moon-op: 1;
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    line-height: 1.58;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+
+  /* ── фоновая сцена «Большая волна» ── */
+  .scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .sky .s0 { stop-color: var(--sky-a); }
+  .sky .s1 { stop-color: var(--sky-b); }
+  .moon { fill: var(--moon); opacity: var(--moon-op); }
+  .moon-halo { fill: var(--moon); opacity: calc(var(--moon-op) * 0.14); }
+  .mist { fill: var(--mist); opacity: var(--mist-op); }
+  .fuji { fill: var(--fuji); stroke: var(--wave-line); stroke-width: 2; stroke-linejoin: round; }
+  .fuji-snow { fill: var(--fuji-snow); }
+  .wave-deep { fill: var(--wave-deep); }
+  .wave-mid { fill: var(--wave-mid); }
+  .wave-light { fill: var(--wave-light); }
+  .scene .stroke { stroke: var(--wave-line); stroke-width: 2.5; stroke-linejoin: round; }
+  .foam { fill: var(--wave-foam); stroke: var(--wave-line); stroke-width: 1.4; stroke-linejoin: round; }
+  #spray circle { fill: var(--wave-foam); }
+  .boat { fill: var(--wave-line); opacity: 0.85; }
+
+  /* ── контент ── */
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: clamp(1.3rem, 4vw, 3rem) clamp(1rem, 4vw, 2.4rem) 4rem;
+  }
+
+  header.masthead {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    padding: 0.4rem 0 1.3rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .brand-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    margin: 0 0 0.5rem;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--step-3);
+    line-height: 1.08;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .mast-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.7rem;
+    max-width: 32ch;
+  }
+  .mast-side p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    text-align: right;
+  }
+  .seal {
+    width: 44px;
+    height: 44px;
+    align-self: flex-end;
+    transform: rotate(-4deg);
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.12));
+  }
+  .seal .seal-bg { fill: var(--seal); }
+  .seal .seal-fg { fill: var(--accent-ink); }
+  @media (max-width: 560px) {
+    .mast-side { align-items: flex-start; max-width: none; }
+    .mast-side p { text-align: left; }
+    .seal { align-self: flex-start; }
+  }
+
+  .theme-toggle {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--seal);
+    border-radius: 0;
+    padding: 0.32rem 0.8rem;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--accent-deep); border-color: var(--seal); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
+    gap: clamp(1rem, 3vw, 2.2rem);
+    margin-top: 2rem;
+    align-items: start;
+  }
+  @media (max-width: 780px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .panel,
+  details.editor,
+  footer.note {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 0;
+  }
+  .panel {
+    box-shadow: var(--shadow);
+    padding: 1.4rem 1.3rem;
+  }
+  .panel h2 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--step-1);
+    letter-spacing: 0.03em;
+    margin: 0 0 1.1rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 0.32rem; margin-bottom: 0.95rem; }
+  .field label { font-size: var(--step--1); font-weight: 600; letter-spacing: 0.03em; }
+  input[type="date"] {
+    font-family: var(--font-mono);
+    font-size: var(--step-0);
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 2px;
+    padding: 0.5rem 0.6rem;
+    width: 100%;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.65; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 1.3rem; }
+  .presets button {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    background: transparent;
+    color: var(--accent-deep);
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--seal);
+    border-radius: 0;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+  }
+  .presets button:hover { background: var(--accent-wash); border-color: var(--seal); }
+
+  .opts { display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 1.15rem; }
+  .opt { display: flex; gap: 0.6rem; align-items: flex-start; cursor: pointer; }
+  .opt input { margin: 0.2rem 0 0; width: 1.05rem; height: 1.05rem; accent-color: var(--seal); flex: none; }
+  .opt span { font-size: var(--step--1); }
+  .opt .hint { display: block; color: var(--muted); font-size: 0.76rem; margin-top: 0.15rem; line-height: 1.45; }
+
+  .result-head {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: baseline;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .enso {
+    position: absolute;
+    left: -14px;
+    top: 50%;
+    width: 150px;
+    height: 150px;
+    transform: translateY(-52%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .enso circle { stroke: var(--seal); }
+  .result-head > div { position: relative; z-index: 1; }
+  .bignum {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--step-huge);
+    line-height: 0.86;
+    letter-spacing: 0.01em;
+    color: var(--accent-deep);
+    font-variant-numeric: tabular-nums;
+    position: relative;
+    z-index: 1;
+  }
+  .bignum-label { font-size: var(--step-0); color: var(--muted); max-width: 17ch; }
+  .range-note { font-family: var(--font-mono); font-size: var(--step--1); color: var(--ink-soft); margin-top: 0.2rem; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border-strong); margin-top: 1.1rem; }
+  .tile { padding: 0.8rem 0.75rem; border-right: 1px solid var(--border); }
+  .tile:last-child { border-right: 0; }
+  .tile .n { font-family: var(--font-display); font-weight: 400; font-size: var(--step-2); font-variant-numeric: tabular-nums; }
+  .tile .k { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .tile.weekend .n { color: var(--weekend); }
+  .tile.holiday .n { color: var(--seal); }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 1.7rem 0 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-label::before { content: ""; width: 0.5rem; height: 0.5rem; background: var(--seal); flex: none; }
+
+  .table-scroll { overflow-x: auto; }
+  table.months { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 380px; }
+  table.months th {
+    text-align: right;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 0 0.5rem 0.45rem;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  table.months th:first-child { text-align: left; }
+  table.months td {
+    padding: 0.44rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    text-align: right;
+  }
+  table.months td:first-child { text-align: left; font-family: var(--font-body); font-weight: 500; }
+  .bar-cell { width: 30%; }
+  .bar-track { background: var(--surface-2); height: 0.5rem; overflow: hidden; }
+  .bar-fill { background: var(--wave-mid); height: 100%; }
+
+  ul.hols { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-strong); }
+  ul.hols li {
+    display: flex;
+    gap: 0.8rem;
+    align-items: baseline;
+    padding: 0.5rem 0.75rem;
+    font-size: var(--step--1);
+    border-bottom: 1px solid var(--border);
+  }
+  ul.hols li:last-child { border-bottom: 0; }
+  ul.hols li .d { font-family: var(--font-mono); color: var(--seal); flex: none; width: 6.5rem; }
+  ul.hols li .t { flex: 1; }
+  ul.hols li .x { color: var(--muted); font-size: 0.76rem; flex: none; }
+  ul.hols li.moved { background: var(--accent-wash); }
+
+  .empty { color: var(--muted); font-size: var(--step--1); font-style: italic; padding: 0.4rem 0; }
+  .warn {
+    background: var(--accent-wash);
+    border-left: 3px solid var(--seal);
+    color: var(--ink);
+    padding: 0.65rem 0.8rem;
+    font-size: var(--step--1);
+    margin-top: 1rem;
+  }
+
+  details.editor { margin-top: 1.7rem; padding: 0.4rem 1.3rem 1.3rem; }
+  details.editor > summary {
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--step-1);
+    letter-spacing: 0.03em;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  details.editor > summary::-webkit-details-marker { display: none; }
+  details.editor > summary::before {
+    content: "+";
+    font-family: var(--font-mono);
+    color: var(--seal);
+    font-size: 1.1rem;
+    width: 1.1rem;
+    text-align: center;
+  }
+  details.editor[open] > summary::before { content: "\2212"; }
+
+  .editor-body { padding-top: 0.9rem; }
+  .editor-body p.lede { color: var(--muted); font-size: var(--step--1); margin: 0 0 1rem; max-width: 64ch; line-height: 1.5; }
+  .hrow { display: grid; grid-template-columns: 9.5rem 1fr 2rem; gap: 0.5rem; margin-bottom: 0.4rem; align-items: center; }
+  .hrow input {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    background: var(--surface-2);
+    color: var(--ink);
+    border: 1px solid var(--border-strong);
+    border-radius: 2px;
+    padding: 0.35rem 0.45rem;
+    min-width: 0;
+  }
+  .hrow input[type="text"] { font-family: var(--font-body); }
+  .hrow button.del {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--muted);
+    border-radius: 0;
+    cursor: pointer;
+    height: 1.9rem;
+    font-size: 0.9rem;
+  }
+  .hrow button.del:hover { border-color: var(--seal); color: var(--seal); }
+  .editor-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .editor-actions button {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    padding: 0.42rem 0.9rem;
+    border-radius: 0;
+    cursor: pointer;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .editor-actions button.primary { background: var(--seal); border-color: var(--seal); color: var(--accent-ink); }
+  .editor-actions button:hover { border-color: var(--seal); }
+
+  footer.note {
+    margin-top: 2.8rem;
+    padding: 1.2rem 1.3rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.55;
+  }
+
+  :focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg class="scene" viewBox="0 0 1000 680" preserveAspectRatio="xMinYMax slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="sky" class="sky" x1="0" y1="0" x2="0.35" y2="1">
+      <stop class="s0" offset="0" />
+      <stop class="s1" offset="1" />
+    </linearGradient>
+    <filter id="mistBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9" /></filter>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="680" fill="url(#sky)" />
+
+  <circle class="moon-halo" cx="792" cy="118" r="118" />
+  <circle class="moon" cx="792" cy="118" r="70" />
+
+  <path class="mist" filter="url(#mistBlur)" d="M 300,300 C 388,236 440,300 522,268 C 612,232 664,300 762,282 C 726,368 704,472 694,566 C 560,472 420,432 340,360 C 312,334 296,318 300,300 Z" />
+
+  <path class="fuji" d="M 430,486 L 512,372 L 596,486 Z" />
+  <path class="fuji-snow" d="M 486,414 L 512,372 L 538,414 L 524,405 L 512,420 L 500,405 Z" />
+
+  <g class="backwave">
+    <path class="wave-light stroke" d="M -20,680 L -20,360 C 40,300 110,285 182,320 C 250,354 272,430 250,470 C 228,428 168,404 108,430 C 48,456 8,540 -20,600 Z" />
+    <g id="backFoam"></g>
+  </g>
+
+  <g class="greatwave">
+    <path class="wave-mid stroke" d="M -182.6,456.4 A 470,470 0 0 1 711.4,550.3 L 574,577 A 330,330 0 0 0 -53.8,511.1 Z" />
+    <path class="wave-deep stroke" d="M -61.8,460 A 360,360 0 0 1 597.8,546.8 L 491.5,575.3 A 250,250 0 0 0 33.5,515 Z" />
+    <path class="wave-light stroke" d="M 560,150 C 662,120 732,182 716,272 C 706,322 650,346 610,326 C 578,310 572,268 598,247 C 618,231 650,238 654,262 C 657,280 645,292 630,290" />
+    <g id="crestFoam"></g>
+  </g>
+
+  <g id="spray"></g>
+
+  <g class="foreground">
+    <path class="wave-deep stroke" d="M -20,680 L -20,565 C 160,500 380,495 560,560 C 700,610 850,600 1020,545 L 1020,680 Z" />
+    <path class="wave-mid stroke" d="M -20,680 L -20,602 C 200,548 400,558 590,612 C 740,654 880,646 1020,602 L 1020,680 Z" />
+    <path class="boat" d="M 352,545 Q 435,588 518,545 Q 502,557 435,561 Q 368,557 352,545 Z" />
+    <g id="frontFoam"></g>
+  </g>
+
+  <path class="boat" d="M 520,470 Q 575,494 630,470 Q 618,481 575,483 Q 532,481 520,470 Z" />
+</svg>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="mast-main">
+      <p class="brand-eyebrow">Производственный календарь · Республика Казахстан</p>
+      <h1>Калькулятор рабочих дней</h1>
+    </div>
+
+    <div class="mast-side">
+      <button class="theme-toggle" id="themeToggle" type="button">тема: авто</button>
+      <p>Считает рабочие дни между двумя датами с учётом субботы, воскресенья и государственных праздников Казахстана. Работает офлайн.</p>
+      <svg class="seal" viewBox="0 0 100 100" aria-hidden="true">
+        <rect class="seal-bg" x="3" y="3" width="94" height="94" rx="4" />
+        <g class="seal-fg">
+          <rect x="16" y="16" width="68" height="14" />
+          <rect x="16" y="38" width="18" height="16" />
+          <rect x="41" y="38" width="18" height="16" />
+          <rect x="66" y="38" width="18" height="16" />
+          <rect x="16" y="62" width="18" height="16" />
+          <rect x="41" y="62" width="18" height="16" />
+          <rect x="66" y="62" width="18" height="16" />
+        </g>
+      </svg>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="panel" aria-label="Параметры">
+      <h2>Период</h2>
+      <div class="field">
+        <label for="start">Дата начала</label>
+        <input type="date" id="start" />
+      </div>
+      <div class="field">
+        <label for="end">Дата окончания</label>
+        <input type="date" id="end" />
+      </div>
+
+      <div class="presets" id="presets"></div>
+
+      <div class="opts">
+        <label class="opt">
+          <input type="checkbox" id="includeEnd" checked />
+          <span>Включать последний день в подсчёт</span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" id="useWeekends" checked />
+          <span>Исключать выходные (сб, вс)</span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" id="useHolidays" checked />
+          <span>Исключать праздники РК</span>
+        </label>
+        <label class="opt">
+          <input type="checkbox" id="transfer" checked />
+          <span>Переносить праздник с выходного
+            <span class="hint">Ст. 84 Трудового кодекса РК: если праздник совпал с сб/вс, день отдыха переносится на следующий рабочий день.</span>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Результат" id="results"></section>
+  </div>
+
+  <details class="editor" id="editor">
+    <summary>Список праздников</summary>
+    <div class="editor-body">
+      <p class="lede">
+        Государственные и национальные праздники РК (нерабочие дни). Дата Курбан айта приблизительна для будущих лет — уточните по мусульманскому календарю.
+        Перенесённые правительством «мостики» между праздниками меняются каждый год постановлением Правительства РК — добавьте их вручную при необходимости.
+      </p>
+      <div id="holoRows"></div>
+      <div class="editor-actions">
+        <button type="button" id="addHol">+ Добавить дату</button>
+        <button type="button" id="applyHol" class="primary">Применить</button>
+        <button type="button" id="resetHol">Сбросить к официальным</button>
+      </div>
+    </div>
+  </details>
+
+  <footer class="note">
+    Расчёт носит справочный характер. Нерабочие праздничные дни приведены по Закону РК «О праздниках в Республике Казахстан»
+    и статье 84 Трудового кодекса РК. Ежегодные переносы дней отдыха утверждаются отдельными постановлениями Правительства РК
+    и здесь не учитываются автоматически. Файл полностью автономный: без интернета, серверов и внешних библиотек;
+    настройки сохраняются только в этом браузере.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── фоновая сцена: пена и брызги ── */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function buildScene() {
+    var SVGNS = "http://www.w3.org/2000/svg";
+    var rng = mulberry32(20260909);
+    var CLAW = "M0,0 C 5,-13 20,-15 27,-4 C 21,-11 11,-9 9,0 C 8,7 15,11 21,8 C 13,15 2,11 0,0 Z";
+    var TAU = Math.PI * 2;
+
+    function claws(groupId, cx, cy, R, a0, a1, count, base, grow) {
+      var g = document.getElementById(groupId);
+      if (!g) return;
+      for (var i = 0; i < count; i++) {
+        var f = count > 1 ? i / (count - 1) : 0;
+        var ang = (a0 + (a1 - a0) * f) * Math.PI / 180;
+        var x = cx + (R + 3) * Math.cos(ang);
+        var y = cy + (R + 3) * Math.sin(ang);
+        var s = base + grow * Math.sin(Math.PI * f) + rng() * 0.35;
+        var rot = ang * 180 / Math.PI + 90;
+        var p = document.createElementNS(SVGNS, "path");
+        p.setAttribute("class", "foam");
+        p.setAttribute("d", CLAW);
+        p.setAttribute("transform", "translate(" + x.toFixed(1) + "," + y.toFixed(1) + ") rotate(" + rot.toFixed(1) + ") scale(" + s.toFixed(2) + ")");
+        g.appendChild(p);
+      }
+    }
+
+    claws("crestFoam", 250, 640, 470, 204, 349, 11, 1.05, 1.5);
+    claws("backFoam", 110, 660, 360, 210, 322, 6, 0.7, 0.7);
+
+    // пена по гребню переднего вала
+    var front = document.getElementById("frontFoam");
+    if (front) {
+      for (var x = 30; x <= 940; x += 84) {
+        var y = 604 - 46 * Math.sin((x + 120) / 210);
+        var s = 0.55 + rng() * 0.5;
+        var p = document.createElementNS(SVGNS, "path");
+        p.setAttribute("class", "foam");
+        p.setAttribute("d", CLAW);
+        p.setAttribute("transform", "translate(" + x + "," + y.toFixed(1) + ") rotate(" + (-14 + rng() * 28).toFixed(1) + ") scale(" + s.toFixed(2) + ")");
+        front.appendChild(p);
+      }
+    }
+
+    // брызги в жерле волны
+    var spray = document.getElementById("spray");
+    if (spray) {
+      for (var i = 0; i < 78; i++) {
+        var dist = Math.pow(rng(), 0.7) * 340;
+        var dir = -Math.PI * 0.5 + (rng() - 0.35) * 1.7;
+        var sx = 520 + dist * Math.cos(dir);
+        var sy = 300 + dist * Math.sin(dir) * 0.72;
+        if (sy > 560 || sx < 300 || sx > 995 || sy < 30) continue;
+        var c = document.createElementNS(SVGNS, "circle");
+        c.setAttribute("cx", sx.toFixed(1));
+        c.setAttribute("cy", sy.toFixed(1));
+        c.setAttribute("r", (1.3 + rng() * 4.4).toFixed(1));
+        c.setAttribute("opacity", Math.max(0.32, 1 - dist / 360).toFixed(2));
+        spray.appendChild(c);
+      }
+    }
+  }
+
+  /* ── справочные данные ── */
+  var MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+  var KURBAN = { 2022:"07-09", 2023:"06-28", 2024:"06-16", 2025:"06-06", 2026:"05-27", 2027:"05-16", 2028:"05-05", 2029:"04-24", 2030:"04-13" };
+  var KURBAN_EXACT_UNTIL = 2025;
+
+  var FIXED = [
+    ["01-01","Новый год"],
+    ["01-02","Новый год"],
+    ["01-07","Православное Рождество"],
+    ["03-08","Международный женский день"],
+    ["03-21","Наурыз мейрамы"],
+    ["03-22","Наурыз мейрамы"],
+    ["03-23","Наурыз мейрамы"],
+    ["05-01","Праздник единства народа Казахстана"],
+    ["05-07","День защитника Отечества"],
+    ["05-09","День Победы"],
+    ["07-06","День столицы"],
+    ["08-30","День Конституции"],
+    ["10-25","Республиканский день"],
+    ["12-16","День Независимости"]
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var pad = function (n) { return n < 10 ? "0" + n : "" + n; };
+  var key = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  var parse = function (s) { var p = String(s).split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); };
+  var addDays = function (d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  var isWeekend = function (d) { var g = d.getDay(); return g === 0 || g === 6; };
+
+  var LS = "workdays-kz-v1";
+  var state = {
+    start: null, end: null,
+    includeEnd: true, useWeekends: true, useHolidays: true, transfer: true,
+    customHolidays: null
+  };
+
+  function officialHolidays(years) {
+    var list = [];
+    years.forEach(function (y) {
+      FIXED.forEach(function (h) { list.push({ date: y + "-" + h[0], name: h[1] }); });
+      if (KURBAN[y]) {
+        var approx = y > KURBAN_EXACT_UNTIL ? " (дата приблизительна)" : "";
+        list.push({ date: y + "-" + KURBAN[y], name: "Курбан айт" + approx });
+      }
+    });
+    list.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    return list;
+  }
+
+  function yearsInRange(a, b) {
+    var ys = [], y = a.getFullYear();
+    for (; y <= b.getFullYear(); y++) ys.push(y);
+    return ys;
+  }
+
+  function effectiveHolidays(a, b) {
+    if (state.customHolidays) return state.customHolidays.slice();
+    return officialHolidays(yearsInRange(a, b));
+  }
+
+  function compute() {
+    var a = state.start ? parse(state.start) : null;
+    var b = state.end ? parse(state.end) : null;
+    if (!a || !b || isNaN(a) || isNaN(b)) return { error: "Укажите обе даты." };
+    if (a > b) return { error: "Дата начала позже даты окончания." };
+
+    var last = state.includeEnd ? b : addDays(b, -1);
+    if (a > last) return { error: "Период пуст — снимите «включать последний день» или расширьте диапазон." };
+
+    var hols = effectiveHolidays(a, last);
+    var named = {};
+    var baseSet = {};
+    hols.forEach(function (h) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(h.date)) return;
+      baseSet[h.date] = true;
+      if (!named[h.date]) named[h.date] = h.name;
+    });
+
+    var observed = {};
+    var moved = [];
+    Object.keys(baseSet).forEach(function (k) { observed[k] = true; });
+    if (state.transfer) {
+      Object.keys(baseSet).sort().forEach(function (k) {
+        var d = parse(k);
+        if (!isWeekend(d)) return;
+        var n = addDays(d, 1);
+        while (isWeekend(n) || observed[key(n)]) n = addDays(n, 1);
+        observed[key(n)] = true;
+        moved.push({ from: k, to: key(n), name: named[k] || "Праздник" });
+      });
+    }
+
+    var total = 0, weekendDays = 0, holidayWorkdays = 0, working = 0;
+    var perMonth = {};
+    var holsInRange = [];
+    var seenHol = {};
+
+    for (var d = new Date(a); d <= last; d = addDays(d, 1)) {
+      var k = key(d);
+      var ym = d.getFullYear() + "-" + pad(d.getMonth() + 1);
+      if (!perMonth[ym]) perMonth[ym] = { label: MONTHS[d.getMonth()] + " " + d.getFullYear(), total: 0, weekend: 0, holiday: 0, work: 0 };
+      var m = perMonth[ym];
+
+      total++; m.total++;
+      var wknd = isWeekend(d);
+      var hol = !!observed[k];
+
+      if (wknd) { weekendDays++; m.weekend++; }
+      if (hol && !wknd) { holidayWorkdays++; m.holiday++; }
+
+      var isWork = true;
+      if (state.useWeekends && wknd) isWork = false;
+      if (state.useHolidays && hol) isWork = false;
+      if (isWork) { working++; m.work++; }
+
+      if (hol && !seenHol[k]) {
+        seenHol[k] = true;
+        var movedRec = null;
+        for (var i = 0; i < moved.length; i++) if (moved[i].to === k) movedRec = moved[i];
+        if (baseSet[k]) {
+          holsInRange.push({ date: k, name: named[k], moved: false });
+        } else if (movedRec) {
+          holsInRange.push({ date: k, name: movedRec.name + " — перенос с " + fmt(movedRec.from), moved: true });
+        }
+      }
+    }
+    holsInRange.sort(function (x, y) { return x.date < y.date ? -1 : 1; });
+
+    return {
+      a: a, last: last, total: total,
+      weekendDays: weekendDays, holidayWorkdays: holidayWorkdays, working: working,
+      perMonth: Object.keys(perMonth).sort().map(function (k) { return perMonth[k]; }),
+      holsInRange: holsInRange
+    };
+  }
+
+  function fmt(k) {
+    var d = parse(k);
+    return d.getDate() + " " + MONTHS[d.getMonth()].toLowerCase().slice(0, 3) + " " + d.getFullYear();
+  }
+  function fmtLong(d) {
+    return d.getDate() + " " + MONTHS[d.getMonth()].toLowerCase() + " " + d.getFullYear();
+  }
+  function plural(n, forms) {
+    var n10 = n % 10, n100 = n % 100;
+    if (n10 === 1 && n100 !== 11) return forms[0];
+    if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms[1];
+    return forms[2];
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function render() {
+    var r = compute();
+    var el = $("results");
+    if (r.error) {
+      el.innerHTML = '<div class="empty" style="font-size:var(--step-0)">' + esc(r.error) + "</div>";
+      return;
+    }
+
+    var maxWork = r.perMonth.reduce(function (mx, m) { return Math.max(mx, m.work); }, 1);
+
+    var html = "";
+    html += '<div class="result-head">';
+    html += '<svg class="enso" viewBox="0 0 120 120" aria-hidden="true">' +
+      '<defs><filter id="brush"><feGaussianBlur stdDeviation="0.7" /></filter></defs>' +
+      '<circle cx="60" cy="60" r="47" fill="none" stroke="#a72f26" stroke-width="6" ' +
+      'stroke-linecap="round" stroke-dasharray="248 60" transform="rotate(-28 60 60)" ' +
+      'filter="url(#brush)" opacity="0.15" /></svg>';
+    html += '<div class="bignum">' + r.working + "</div>";
+    html += '<div><div class="bignum-label">' + plural(r.working, ["рабочий день", "рабочих дня", "рабочих дней"]) +
+      " в выбранном периоде</div>";
+    html += '<div class="range-note">' + fmtLong(r.a) + "  →  " + fmtLong(r.last) + "</div></div>";
+    html += "</div>";
+
+    html += '<div class="tiles">';
+    html += '<div class="tile"><div class="n">' + r.total + '</div><div class="k">календарных</div></div>';
+    html += '<div class="tile weekend"><div class="n">' + r.weekendDays + '</div><div class="k">выходных</div></div>';
+    html += '<div class="tile holiday"><div class="n">' + r.holidayWorkdays + '</div><div class="k">праздников</div></div>';
+    html += "</div>";
+
+    if (!state.useWeekends || !state.useHolidays) {
+      var parts = [];
+      if (!state.useWeekends) parts.push("выходные считаются рабочими");
+      if (!state.useHolidays) parts.push("праздники считаются рабочими");
+      html += '<div class="warn">Учтите настройки: ' + parts.join(", ") + ".</div>";
+    }
+
+    if (r.perMonth.length > 1) {
+      html += '<div class="section-label">По месяцам</div>';
+      html += '<div class="table-scroll"><table class="months"><thead><tr><th>Месяц</th><th>Кал.</th><th>Вых.</th><th>Пр.</th><th>Раб.</th><th class="bar-cell"></th></tr></thead><tbody>';
+      r.perMonth.forEach(function (m) {
+        html += "<tr><td>" + m.label + "</td><td>" + m.total + "</td><td>" + m.weekend + "</td><td>" + m.holiday +
+          '</td><td><strong>' + m.work + "</strong></td>" +
+          '<td class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:' +
+          (m.work / maxWork * 100).toFixed(1) + '%"></div></div></td></tr>';
+      });
+      html += "</tbody></table></div>";
+    }
+
+    html += '<div class="section-label">Праздники в периоде</div>';
+    if (r.holsInRange.length === 0) {
+      html += '<div class="empty">В выбранном диапазоне праздничных дней нет.</div>';
+    } else {
+      html += '<ul class="hols">';
+      r.holsInRange.forEach(function (h) {
+        var d = parse(h.date);
+        var wk = ["вс","пн","вт","ср","чт","пт","сб"][d.getDay()];
+        html += "<li" + (h.moved ? ' class="moved"' : "") + '><span class="d">' + fmt(h.date) +
+          '</span><span class="t">' + esc(h.name) + '</span><span class="x">' + wk + "</span></li>";
+      });
+      html += "</ul>";
+    }
+
+    el.innerHTML = html;
+  }
+
+  function buildEditorRows() {
+    var a = state.start ? parse(state.start) : new Date();
+    var b = state.end ? parse(state.end) : new Date();
+    var list = state.customHolidays || officialHolidays(yearsInRange(a, isNaN(b) ? a : b));
+    var box = $("holoRows");
+    box.innerHTML = "";
+    list.forEach(function (h, i) {
+      var row = document.createElement("div");
+      row.className = "hrow";
+      row.innerHTML =
+        '<input type="date" value="' + esc(h.date) + '" data-i="' + i + '" data-f="date" />' +
+        '<input type="text" value="' + esc(h.name) + '" data-i="' + i + '" data-f="name" />' +
+        '<button type="button" class="del" aria-label="Удалить">×</button>';
+      box.appendChild(row);
+    });
+  }
+
+  function readEditorRows() {
+    var rows = $("holoRows").querySelectorAll(".hrow");
+    var out = [];
+    rows.forEach(function (row) {
+      var date = row.querySelector('[data-f="date"]').value;
+      var name = row.querySelector('[data-f="name"]').value.trim();
+      if (date) out.push({ date: date, name: name || "Праздник" });
+    });
+    out.sort(function (x, y) { return x.date < y.date ? -1 : 1; });
+    return out;
+  }
+
+  function save() {
+    try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {}
+  }
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(LS));
+      if (s && typeof s === "object") Object.assign(state, s);
+    } catch (e) {}
+  }
+
+  function setRange(a, b) {
+    state.start = key(a); state.end = key(b);
+    $("start").value = state.start; $("end").value = state.end;
+    save(); render(); buildEditorRows();
+  }
+  var PRESETS = [
+    ["Текущий месяц", function () { var n = new Date(); return [new Date(n.getFullYear(), n.getMonth(), 1), new Date(n.getFullYear(), n.getMonth() + 1, 0)]; }],
+    ["Текущий квартал", function () { var n = new Date(); var q = Math.floor(n.getMonth() / 3); return [new Date(n.getFullYear(), q * 3, 1), new Date(n.getFullYear(), q * 3 + 3, 0)]; }],
+    ["Год " + new Date().getFullYear(), function () { var y = new Date().getFullYear(); return [new Date(y, 0, 1), new Date(y, 11, 31)]; }],
+    ["Год " + (new Date().getFullYear() - 1), function () { var y = new Date().getFullYear() - 1; return [new Date(y, 0, 1), new Date(y, 11, 31)]; }]
+  ];
+
+  var THEMES = ["авто", "дневное море", "ночное море"];
+  var themeIdx = 0;
+  function applyTheme() {
+    var root = document.documentElement;
+    if (themeIdx === 0) root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", themeIdx === 1 ? "light" : "dark");
+    $("themeToggle").textContent = "тема: " + THEMES[themeIdx];
+    try { localStorage.setItem(LS + "-theme", themeIdx); } catch (e) {}
+  }
+
+  function init() {
+    buildScene();
+    load();
+    try { var t = +localStorage.getItem(LS + "-theme"); if (t >= 0 && t <= 2) themeIdx = t; } catch (e) {}
+    applyTheme();
+
+    if (!state.start || !state.end) {
+      var y = new Date().getFullYear();
+      state.start = key(new Date(y, 0, 1));
+      state.end = key(new Date(y, 11, 31));
+    }
+    $("start").value = state.start;
+    $("end").value = state.end;
+    $("includeEnd").checked = state.includeEnd;
+    $("useWeekends").checked = state.useWeekends;
+    $("useHolidays").checked = state.useHolidays;
+    $("transfer").checked = state.transfer;
+
+    var pbox = $("presets");
+    PRESETS.forEach(function (p) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = p[0];
+      btn.addEventListener("click", function () { var r = p[1](); setRange(r[0], r[1]); });
+      pbox.appendChild(btn);
+    });
+
+    ["start", "end"].forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        state[id] = $(id).value; save(); render(); buildEditorRows();
+      });
+    });
+    ["includeEnd", "useWeekends", "useHolidays", "transfer"].forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        state[id] = $(id).checked; save(); render();
+      });
+    });
+
+    $("themeToggle").addEventListener("click", function () {
+      themeIdx = (themeIdx + 1) % 3; applyTheme();
+    });
+
+    $("holoRows").addEventListener("click", function (e) {
+      if (e.target.classList.contains("del")) e.target.closest(".hrow").remove();
+    });
+    $("addHol").addEventListener("click", function () {
+      var row = document.createElement("div");
+      row.className = "hrow";
+      var y = state.start ? state.start.slice(0, 4) : new Date().getFullYear();
+      row.innerHTML =
+        '<input type="date" value="' + y + '-01-01" data-f="date" />' +
+        '<input type="text" value="" placeholder="Название" data-f="name" />' +
+        '<button type="button" class="del" aria-label="Удалить">×</button>';
+      $("holoRows").appendChild(row);
+    });
+    $("applyHol").addEventListener("click", function () {
+      state.customHolidays = readEditorRows();
+      save(); render(); buildEditorRows();
+    });
+    $("resetHol").addEventListener("click", function () {
+      state.customHolidays = null;
+      save(); render(); buildEditorRows();
+    });
+
+    render();
+    buildEditorRows();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
