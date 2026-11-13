@@ -12,16 +12,20 @@
  *
  * 07.11.2026: этап «Итоги» ставит исход и без договора — «Отменена», если закупка не состоялась / отменена,
  *   и «Победа/Проигрыш» для закупок из одного источника. «Состоялась» без договора — статус не трогает.
+ * 13.11.2026: J «Статус» меняется при любом текущем значении, если портал даёт факт (договор / не состоялась /
+ *   ОИ); P «Победитель» — только в пустую. Этап 2 сверяет и заполненные строки: пустые G/I/N заполняет,
+ *   расхождения заполненных G/I — только заметка в журнал. Строки «Архив» (R) проверяются один раз.
+ *   ОИ: наш поставщик — по id или по БИН/ИИН (GZS_CFG.post[].bin).
  */
 
 var GZS_CFG = {
   url: 'https://ows.goszakup.gov.kz/v3/graphql',
   god0: 2026,        // с этого года планер ведёт данные; текущий год скрипт определяет сам (gzsGodTek_)
-  post: [
-    {id: 763754, imya: 'ТОО Про авто'},
-    {id: 150486, imya: 'ИП Байжанов'},
-    {id: 150484, imya: 'ИП Шайн'},
-    {id: 150488, imya: 'ИП Канаева'}
+  post: [                // bin — БИН/ИИН поставщика (12 цифр), впишите вручную; пусто — сверка только по id
+    {id: 763754, imya: 'ТОО Про авто', bin: ''},
+    {id: 150486, imya: 'ИП Байжанов', bin: ''},
+    {id: 150484, imya: 'ИП Шайн', bin: ''},
+    {id: 150488, imya: 'ИП Канаева', bin: ''}
   ],
   ZAK: '2. Закупки', DOG: '3. Договоры', AKT: '4. Акты и оплата', ZH: 'Сверка ГЗ',
   dZak: [5, 303], dDog: [5, 202], dAkt: [5, 402],
@@ -201,12 +205,12 @@ function gzsEtapZakupki_(ctx) {
   var kesh = pr.getProperties();
   var sh = gzsList_(C.ZAK), s0 = C.dZak[0], n = C.dZak[1] - s0 + 1;
   while (true) {
-    var vals = sh.getRange(s0, 1, n, 14).getValues();
+    var vals = sh.getRange(s0, 1, n, 18).getValues();
     var nado = [], seen = {};
     vals.forEach(function (r) {
       if (String(r[1]).trim() !== 'ГЗ') return;
       var d = String(r[3]).trim(); if (!d || seen[d]) return;
-      if (gzsKl_(r[6], 't') !== '' && gzsKl_(r[8], 't') !== '' && gzsKl_(r[13], 't') !== '') return;
+      if (String(r[17]).trim() === 'Архив' && kesh['GZS_Z_' + d]) return;   // архив — проверяется один раз
       var srokPod = gzsIzYach_(r[8]);
       if (srokPod && srokPod.getFullYear() < gzsGodMin_()) return;     // только закупки текущего и прошлого года
       if (st.sdelano.indexOf(d) >= 0) return;
@@ -223,26 +227,42 @@ function gzsEtapZakupki_(ctx) {
     var otv = gzsZapros_(ctx, q), data = otv.data || {};
     if (otv.errors) gzsZap_(ctx, 'заметка', C.ZAK, '', '', pachka.join(', '), 'ошибка по части запроса: ' + JSON.stringify(otv.errors).slice(0, 300));
 
-    vals = sh.getRange(s0, 1, n, 14).getValues();          // перечитать перед записью
+    vals = sh.getRange(s0, 1, n, 18).getValues();          // перечитать перед записью
     pachka.forEach(function (d, j) {
       var tb = [].concat(data['t' + j] || [])[0], lots = [].concat(data['l' + j] || []);
-      var vseOk = true;
+      var vseOk = true, rash = [];
       if (!tb && !lots.length) gzsZap_(ctx, 'не разнесено', C.ZAK, '', '', d, 'закупка не найдена на портале');
+      var sm = null;
+      lots.forEach(function (l) { var v = gzsChislo_(l && l.amount); if (v != null) sm = (sm || 0) + v; });
+      var poLotam = lots.length > 1 ? ' (сумма — по ' + lots.length + ' лотам)' : '';
       vals.forEach(function (r, i) {
         if (String(r[3]).trim() !== d || String(r[1]).trim() !== 'ГЗ') return;
         var izm = [];
         if (tb) {
           var srok = gzsData_(tb.endDate, true);
-          if (srok) gzsIzm_(izm, 9, r[8], srok, 'dt');
+          if (srok) {
+            if (gzsKl_(r[8], 't') === '') gzsIzm_(izm, 9, r[8], srok, 'dt');              // пустой — заполнить
+            else if (gzsKl_(r[8], 'd') !== gzsKl_(srok, 'd'))                          // заполнен — только заметка
+              rash.push(['I' + (s0 + i), gzsPokaz_(r[8], 'd'), gzsPokaz_(srok, 'd'), 'на портале другой срок подачи — ячейку не меняю']);
+          }
           if (gzsKl_(r[13], 't') === '') { var it = gzsData_(tb.itogiDatePublic, false); if (it) gzsIzm_(izm, 14, r[13], it, 'd'); }
         }
-        if (gzsKl_(r[6], 't') === '') {
-          var sm = null;
-          lots.forEach(function (l) { var v = gzsChislo_(l && l.amount); if (v != null) sm = (sm || 0) + v; });
-          if (sm != null) gzsIzm_(izm, 7, r[6], sm, 'n');
+        if (sm != null) {
+          if (gzsKl_(r[6], 't') === '') gzsIzm_(izm, 7, r[6], sm, 'n');
+          else if (gzsKl_(r[6], 'n') !== gzsKl_(sm, 'n'))
+            rash.push(['G' + (s0 + i), gzsPokaz_(r[6], 'n'), gzsPokaz_(sm, 'n'), 'на портале другая сумма' + poLotam + ' — ячейку не меняю']);
         }
-        if (!gzsStroka_(ctx, C.ZAK, s0 + i, 4, d, izm, 'данные объявления на портале' + (lots.length > 1 ? ' (сумма — по ' + lots.length + ' лотам)' : ''))) vseOk = false;
+        if (!gzsStroka_(ctx, C.ZAK, s0 + i, 4, d, izm, 'данные объявления на портале' + poLotam)) vseOk = false;
       });
+      // расхождения: в режиме записи одно и то же повторно не пишем, пока портал или планер не изменятся
+      var klR = rash.map(function (x) { return x.join('|'); }).join('#');
+      if (st.rezhim !== 'zapis' || (kesh['GZS_ZR_' + d] || '') !== klR) {
+        rash.forEach(function (x) { gzsZap_(ctx, 'заметка', C.ZAK, x[0], x[1], x[2], x[3]); });
+        if (st.rezhim === 'zapis') {
+          if (klR) pr.setProperty('GZS_ZR_' + d, klR); else pr.deleteProperty('GZS_ZR_' + d);
+          kesh['GZS_ZR_' + d] = klR;
+        }
+      }
       if (st.rezhim === 'zapis' && vseOk) {
         var t = String(Date.now());
         pr.setProperty('GZS_Z_' + d, t); kesh['GZS_Z_' + d] = t;
@@ -259,15 +279,17 @@ function gzsEtapZakupki_(ctx) {
 function gzsEtapItogi_(ctx) {
   var st = ctx.st, C = GZS_CFG, pr = PropertiesService.getScriptProperties(), kesh = pr.getProperties();
   var sh = gzsList_(C.ZAK), s0 = C.dZak[0], n = C.dZak[1] - s0 + 1;
-  var idPo = {}; C.post.forEach(function (p) { idPo[p.imya] = p.id; });
-  var zhdut = ['Подана', 'Допущена'];
+  var idPo = {}, binPo = {};
+  C.post.forEach(function (p) { idPo[p.imya] = p.id; binPo[p.imya] = String(p.bin || '').trim(); });
+  // 13.11.2026: J меняется при любом текущем значении (раньше — только «Подана»/«Допущена»)
   if (st.subj === undefined) st.subj = gzsSubjPole_(ctx);   // поле с названием поставщика у Subject
   var polya = 'supplierId supplierFio' + (st.subj ? ' Supplier{' + st.subj + '}' : '');
   while (true) {
-    var vals = sh.getRange(s0, 1, n, 17).getValues(), nado = [], seen = {};
+    var vals = sh.getRange(s0, 1, n, 18).getValues(), nado = [], seen = {};
     vals.forEach(function (r) {
-      if (String(r[1]).trim() !== 'ГЗ' || zhdut.indexOf(String(r[9]).trim()) < 0 || !idPo[String(r[0]).trim()]) return;
+      if (String(r[1]).trim() !== 'ГЗ' || !idPo[String(r[0]).trim()]) return;
       var d = String(r[3]).trim(); if (!d || seen[d] || st.sdelano.indexOf(d) >= 0) return;
+      if (String(r[17]).trim() === 'Архив' && kesh['GZS_I_' + d]) return;   // архив — проверяется один раз
       var srok = gzsIzYach_(r[8]), itogi = gzsIzYach_(r[13]);
       if (!srok || srok.getFullYear() < gzsGodMin_()) return;
       // подача ещё идёт — ждём; но если итоги уже опубликованы (ОИ подводят раньше срока), проверяем сразу
@@ -287,7 +309,7 @@ function gzsEtapItogi_(ctx) {
     var data = otv.data || {};
     if (otv.errors) gzsZap_(ctx, 'заметка', C.ZAK, '', '', pachka.join(', '), 'ошибка по части запроса: ' + JSON.stringify(otv.errors).slice(0, 300));
 
-    vals = sh.getRange(s0, 1, n, 17).getValues();             // перечитать перед записью
+    vals = sh.getRange(s0, 1, n, 18).getValues();             // перечитать перед записью
     pachka.forEach(function (d, j) {
       var dog = [].concat(data['c' + j] || []);
       var tb = [].concat(data['t' + j] || [])[0] || null, loty = [].concat(data['l' + j] || []);
@@ -298,19 +320,23 @@ function gzsEtapItogi_(ctx) {
       });
       var ishod = (!dog.length && tb) ? gzsIshod_(tb, loty) : null;
       vals.forEach(function (r, i) {
-        if (String(r[3]).trim() !== d || String(r[1]).trim() !== 'ГЗ' || zhdut.indexOf(String(r[9]).trim()) < 0) return;
+        if (String(r[3]).trim() !== d || String(r[1]).trim() !== 'ГЗ') return;
         var a = String(r[0]).trim(), id = idPo[a]; if (!id) return;
-        var izm = [], pochemu = '';
+        var izm = [], pochemu = '', pPust = gzsKl_(r[15], 't') === '';   // P «Победитель» — только в пустую
         if (dog.length) {                                       // договор заключён — исход точный
-          if (ids.indexOf(id) >= 0) { gzsIzm_(izm, 10, r[9], 'Победа', 't'); gzsIzm_(izm, 16, r[15], a, 't'); pochemu = 'на портале заключён договор с ' + a; }
-          else { gzsIzm_(izm, 10, r[9], 'Проигрыш', 't'); gzsIzm_(izm, 16, r[15], imena.join('; '), 't'); pochemu = 'на портале договор заключён с другим поставщиком'; }
+          if (ids.indexOf(id) >= 0) { gzsIzm_(izm, 10, r[9], 'Победа', 't'); if (pPust) gzsIzm_(izm, 16, r[15], a, 't'); pochemu = 'на портале заключён договор с ' + a; }
+          else { gzsIzm_(izm, 10, r[9], 'Проигрыш', 't'); if (pPust) gzsIzm_(izm, 16, r[15], imena.join('; '), 't'); pochemu = 'на портале договор заключён с другим поставщиком'; }
         } else if (ishod && ishod.vid === 'ne_sost') {           // закупка не состоялась / отменена
           gzsIzm_(izm, 10, r[9], 'Отменена', 't');
           if (gzsKl_(r[16], 't') === '') gzsIzm_(izm, 17, r[16], 'по порталу: ' + ishod.tekst, 't');
           pochemu = 'на портале: ' + ishod.tekst;
         } else if (ishod && ishod.vid === 'oi') {                // из одного источника — поставщик известен
-          if (ishod.id === Number(id)) { gzsIzm_(izm, 10, r[9], 'Победа', 't'); gzsIzm_(izm, 16, r[15], a, 't'); pochemu = 'закупка из одного источника — на портале поставщик ' + a; }
-          else { gzsIzm_(izm, 10, r[9], 'Проигрыш', 't'); gzsIzm_(izm, 16, r[15], 'БИН ' + ishod.bin, 't'); pochemu = 'закупка из одного источника отдана другому поставщику'; }
+          var nash = ishod.id === Number(id) || (binPo[a] !== '' && ishod.bin === binPo[a]);
+          if (!nash && !ishod.id && binPo[a] === '') {           // на портале только БИН, а нашего БИН в настройках нет
+            gzsZap_(ctx, 'заметка', C.ZAK, 'J' + (s0 + i), '', '', 'ОИ: на портале поставщик БИН ' + ishod.bin +
+              ', у ' + a + ' не вписан БИН в GZS_CFG.post — не сравнить, статус не трогаю');
+          } else if (nash) { gzsIzm_(izm, 10, r[9], 'Победа', 't'); if (pPust) gzsIzm_(izm, 16, r[15], a, 't'); pochemu = 'закупка из одного источника — на портале поставщик ' + a; }
+          else { gzsIzm_(izm, 10, r[9], 'Проигрыш', 't'); if (pPust) gzsIzm_(izm, 16, r[15], 'БИН ' + ishod.bin, 't'); pochemu = 'закупка из одного источника отдана другому поставщику'; }
         }
         // «закупка состоялась», договора ещё нет — победитель неизвестен: статус не трогаем (флаг в утреннем письме)
         if (izm.length) gzsStroka_(ctx, C.ZAK, s0 + i, 4, d, izm, pochemu);
@@ -333,8 +359,8 @@ function gzsIshod_(tb, loty) {
     var it = gzsData_(tb.itogiDatePublic, false);
     return {vid: 'ne_sost', tekst: tekst + (it ? ' (итоги ' + Utilities.formatDate(it, gzsTz_(), 'dd.MM.yyyy') + ')' : '')};
   }
-  var sup = Number(tb.idSupplier || 0);
-  if (sup > 0) return {vid: 'oi', id: sup, bin: String(tb.biinSupplier || '')};
+  var sup = Number(tb.idSupplier || 0), bin = String(tb.biinSupplier || '').trim();
+  if (sup > 0 || bin) return {vid: 'oi', id: sup, bin: bin};
   return null;
 }
 
@@ -721,10 +747,10 @@ function gzsDogStroki_() {
 }
 
 // по договорам поставщика: в «Закупках» T = дата проекта (если пусто), P = поставщик (если пусто), J = «Победа»
+// 13.11.2026: J = «Победа» при любом текущем значении (раньше «Не участвуем/Отменена/Отклонена» не трогались)
 function gzsZakPoDogovoram_(ctx, p, spisok) {
   var C = GZS_CFG, sh = gzsList_(C.ZAK), s0 = C.dZak[0];
   var vals = sh.getRange(s0, 1, C.dZak[1] - s0 + 1, 20).getValues();
-  var pred = ['', 'Изучаем', 'Готовим', 'Подана', 'Допущена', 'Проигрыш'];
   var poZak = {};
   spisok.forEach(function (c) {
     var nz = String(c.trdBuyNumberAnno || '').trim(); if (!nz) return;
@@ -734,11 +760,10 @@ function gzsZakPoDogovoram_(ctx, p, spisok) {
   vals.forEach(function (r, i) {
     var d = String(r[3]).trim();
     if (!poZak.hasOwnProperty(d) || String(r[0]).trim() !== p.imya || String(r[1]).trim() !== 'ГЗ') return;
-    var izm = [], j = String(r[9]).trim();
+    var izm = [];
     if (poZak[d] && gzsKl_(r[19], 't') === '') gzsIzm_(izm, 20, r[19], poZak[d], 'd');
     if (gzsKl_(r[15], 't') === '') gzsIzm_(izm, 16, r[15], p.imya, 't');
-    if (pred.indexOf(j) >= 0) gzsIzm_(izm, 10, r[9], 'Победа', 't');
-    else if (j !== 'Победа') gzsZap_(ctx, 'заметка', C.ZAK, 'J' + (s0 + i), j, 'Победа', 'на портале договор с ' + p.imya + ', в планере «' + j + '» — не трогаю');
+    gzsIzm_(izm, 10, r[9], 'Победа', 't');
     gzsStroka_(ctx, C.ZAK, s0 + i, 4, d, izm, 'на портале есть договор с ' + p.imya);
   });
 }
