@@ -28,6 +28,8 @@
  *   больше не меняется (раньше «Готовим» становилось «Победа» и пропадало напоминание «Подать заявку»).
  *   «Изучаем»/«Готовим» не становятся «Победой» по неподписанному договору (нет signDate); дата проекта (T)
  *   при этом заполняется.
+ * 19.11.2026: этап 2 — если в I «Срок подачи» стоит дата без времени, а на портале та же дата со временем,
+ *   время дописывается (для напоминаний в Telegram за 24/3/1 ч). Другая дата — по-прежнему только заметка.
  */
 
 var GZS_CFG = {
@@ -261,9 +263,12 @@ function gzsEtapZakupki_(ctx) {
         if (tb) {
           var srok = gzsData_(tb.endDate, true);
           if (srok) {
+            var yach = gzsIzYach_(r[8]);
             if (gzsKl_(r[8], 't') === '') gzsIzm_(izm, 9, r[8], srok, 'dt');              // пустой — заполнить
             else if (gzsKl_(r[8], 'd') !== gzsKl_(srok, 'd'))                          // заполнен — только заметка
               rash.push(['I' + (s0 + i), gzsPokaz_(r[8], 'd'), gzsPokaz_(srok, 'd'), 'на портале другой срок подачи — ячейку не меняю']);
+            else if (yach && !yach.getHours() && !yach.getMinutes() && (srok.getHours() || srok.getMinutes()))
+              gzsIzm_(izm, 9, r[8], srok, 'dt');                                       // 19.11.2026: та же дата без времени — дописать время
           }
           if (gzsKl_(r[13], 't') === '') { var it = gzsData_(tb.itogiDatePublic, false); if (it) gzsIzm_(izm, 14, r[13], it, 'd'); }
         }
