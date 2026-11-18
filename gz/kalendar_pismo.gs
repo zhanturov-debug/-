@@ -21,9 +21,8 @@
 //   • письмо: сверху только МОИ действия (подать заявку, подписать договор, внести обеспечение, свои задачи;
 //     «проект договора не пришёл» — когда срок уже прошёл). Ожидание от заказчиков — одной строкой внизу.
 //     Флаги по актам из «Обратить внимание» убраны;
-//   • Telegram: утром — список моих действий; в течение дня — пуш за 24 ч и за 3 ч до срока со временем
-//     (подача заявки и т.п.). Настройка — функция tgNastroit (см. ниже). Новых триггеров не нужно:
-//     пуши идут из часового обновления календаря и из утреннего письма.
+//   • Telegram: утром — список моих действий; в течение дня — пуш за 24 ч, за 3 ч и за 1 ч до срока со временем
+//     (подача заявки и т.п.), проверка каждые 15 минут. Настройка — tgNastroit, затем один раз tgVklyuchit.
 
 const KAL_NAZVANIE = 'Тендеры';
 const LIST_SROKI = '6. Сроки';
@@ -108,7 +107,7 @@ function sinhronKalendar() {
       ev.setColor(color);
       ev.removeAllReminders();
       if (napomnit) {
-        if (s.vremya) { ev.addPopupReminder(24 * 60); ev.addPopupReminder(120); }
+        if (s.vremya) { ev.addPopupReminder(24 * 60); ev.addPopupReminder(120); ev.addPopupReminder(60); }
         else ev.addPopupReminder(15 * 60);                 // накануне в 09:00
       }
       ev.setTag('st', 'open');
@@ -130,7 +129,6 @@ function sinhronKalendar() {
   } finally {
     lock.releaseLock();
   }
-  try { if (d) tgNapominaniya_(d); } catch (e) { Logger.log('Telegram: ' + e); }   // v11
 }
 
 function cvet_(cherez) {
@@ -373,7 +371,7 @@ function sinhronGZ_(ss) {
 //     (Токен в чат с Claude не присылать.)
 //  3. Откройте своего бота в Telegram и отправьте ему любое сообщение, например /start.
 //  4. Запустите функцию tgNastroit — она найдёт ваш чат, запомнит его и пришлёт проверочное сообщение.
-const TG_ZA_CHASOV = [24, 3];   // пуш по срокам со временем: за 24 ч и за 3 ч
+const TG_ZA_CHASOV = [24, 3, 1];   // пуш по срокам со временем: за 24 ч, за 3 ч и за 1 ч
 
 function tgNastroit() {
   const pr = PropertiesService.getScriptProperties();
@@ -385,8 +383,22 @@ function tgNastroit() {
   const s = (j.result || []).map(u => u.message || u.edited_message).filter(Boolean).pop();
   if (!s) throw new Error('Бот ещё не получил ни одного сообщения — напишите ему /start и запустите снова');
   pr.setProperty('TG_CHAT', String(s.chat.id));
-  tgOtpravit_('✅ Планер по тендерам подключён. Сюда будут приходить: утром — мои действия, днём — напоминания за 24 ч и за 3 ч до сроков.');
+  tgOtpravit_('✅ Планер по тендерам подключён. Сюда будут приходить: утром — мои действия, днём — напоминания за 24 ч, за 3 ч и за 1 ч до сроков.');
   Logger.log('Telegram подключён, чат ' + s.chat.id);
+}
+
+// v11: включить проверку напоминаний каждые 15 минут (запустить один раз после tgNastroit)
+function tgVklyuchit() {
+  ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'tgChasto') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('tgChasto').timeBased().everyMinutes(15).create();
+  Logger.log('Напоминания в Telegram: проверка каждые 15 минут включена');
+}
+
+function tgChasto() {
+  if (!PropertiesService.getScriptProperties().getProperty('TG_CHAT')) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return;
+  try { tgNapominaniya_(prochitatSroki_()); } finally { lock.releaseLock(); }
 }
 
 function tgOtpravit_(tekst) {
@@ -419,7 +431,7 @@ function tgUtro_(d, okno, prosr) {
   tgOtpravit_(t);
 }
 
-// каждый час (из sinhronKalendar): пуш за 24 ч и за 3 ч до сроков, у которых есть время (обычно подача заявки)
+// каждые 15 минут (tgChasto): пуш за 24 ч, за 3 ч и за 1 ч до сроков, у которых есть время (обычно подача заявки)
 function tgNapominaniya_(d) {
   const pr = PropertiesService.getScriptProperties();
   if (!pr.getProperty('TG_CHAT')) return;
@@ -428,10 +440,12 @@ function tgNapominaniya_(d) {
   d.sroki.filter(s => moe_(s) && s.vremya).forEach(s => {
     const ost = (s.data.getTime() - seichas) / 3600e3;     // часов до срока
     if (ost <= 0) return;
+    const blizh = Math.min.apply(null, TG_ZA_CHASOV.filter(h => ost <= h));   // самый близкий подходящий порог
+    if (!isFinite(blizh)) return;
     TG_ZA_CHASOV.forEach(h => {
       const k = s.klyuch + '|' + s.den + ' ' + s.vremya + '|' + h;
       if (ost > h || bylo[k]) return;
-      if (h === 24 && ost <= 3) { bylo[k] = seichas; izm = true; return; }   // 24-часовой уже не нужен
+      if (h !== blizh) { bylo[k] = seichas; izm = true; return; }       // более ранние пороги уже не нужны
       if (tgOtpravit_('⏰ Через ' + (ost < 1 ? Math.round(ost * 60) + ' мин' : Math.round(ost) + ' ч') + ':\n' + tgStroka_(s))) {
         bylo[k] = seichas; izm = true;
       }
