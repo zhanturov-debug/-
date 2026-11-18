@@ -18,6 +18,7 @@
 // v10: в «Обратить внимание» — закупки, по которым итоги вышли, а статус всё ещё «Подана/Допущена».
 // v11 (18.11.2026):
 //   • календарь: акты (S4 утверждение, S5 оплата) больше не попадают; старые события по актам удаляются;
+//     всплывающих напоминаний в календаре больше нет — напоминает Telegram;
 //   • письмо: сверху только МОИ действия (подать заявку, подписать договор, внести обеспечение, свои задачи;
 //     «проект договора не пришёл» — когда срок уже прошёл). Ожидание от заказчиков — одной строкой внизу.
 //     Флаги по актам из «Обратить внимание» убраны;
@@ -88,7 +89,7 @@ function sinhronKalendar() {
       const title = nazvanie_(s);
       const color = cvet_(s.cherez);
       const desc = opisanie_(s, url);
-      const napomnit = !!NASHI[s.kod] && s.cherez >= 0;
+      const napomnit = false;                               // v11: напоминания — только в Telegram, в календаре без них
       const h = hesh_([title, s.den, s.vremya, color, desc, napomnit].join('¦'));
       let ev = est[s.klyuch];
       if (ev && ev.getTag('h') === h) return;              // ничего не поменялось
@@ -106,10 +107,6 @@ function sinhronKalendar() {
       }
       ev.setColor(color);
       ev.removeAllReminders();
-      if (napomnit) {
-        if (s.vremya) { ev.addPopupReminder(24 * 60); ev.addPopupReminder(120); ev.addPopupReminder(60); }
-        else ev.addPopupReminder(15 * 60);                 // накануне в 09:00
-      }
       ev.setTag('st', 'open');
       ev.setTag('h', h);
     });
